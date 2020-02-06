@@ -6,8 +6,10 @@ const fccTesting  = require('./freeCodeCamp/fcctesting.js');
 const session     = require('express-session');
 const mongo       = require('mongodb').MongoClient;
 const passport    = require('passport');
+const GitHubStrategy = require('passport-github').Strategy;
 
 const app = express();
+process.env.SESSION_SECRET=Math.random()*10000000;
 
 fccTesting(app); //For FCC testing purposes
 
@@ -22,7 +24,7 @@ mongo.connect(process.env.DATABASE, (err, db) => {
         console.log('Database error: ' + err);
     } else {
         console.log('Successful database connection');
-      
+
         app.use(session({
           secret: process.env.SESSION_SECRET,
           resave: true,
@@ -30,7 +32,7 @@ mongo.connect(process.env.DATABASE, (err, db) => {
         }));
         app.use(passport.initialize());
         app.use(passport.session());
-      
+
         function ensureAuthenticated(req, res, next) {
           if (req.isAuthenticated()) {
               return next();
@@ -51,22 +53,52 @@ mongo.connect(process.env.DATABASE, (err, db) => {
             );
         });
 
-      
+        passport.use(new GitHubStrategy({
+          clientID: process.env.GITHUB_CLIENT_ID,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET,
+          callbackURL: '/auth/github/callback'
+        },
+        function(accessToken, refreshToken, profile, cb) {
+          console.log("profile", profile);
+          db.collection('socialusers').findAndModify(
+            {id: profile.id},
+            {},
+            {$setOnInsert:{
+              id: profile.id,
+              name: profile.displayName || 'John Doe',
+              photo: profile.photos[0].value || '',
+              email: profile.emails[0].value || 'No public email',
+              created_on: new Date(),
+              provider: profile.provider || ''
+            },$set:{
+              last_login: new Date()
+            },$inc:{
+              login_count: 1
+            }},
+            {upsert:true, new: true},
+            (err, doc) => {
+              return cb(null, doc.value);
+            }
+          );
+
+        }));
+
         /*
         *  ADD YOUR CODE BELOW
         */
-      
-      
-      
-      
-      
-      
-      
-        /*
-        *  ADD YOUR CODE ABOVE
-        */
-      
-      
+      app.route('/auth/github')
+          .get(passport.authenticate('github'),(req,res) => {
+            console.log("get /auth/github", req);
+        });
+
+       app.route('/auth/github/callback')
+      .get(passport.authenticate('github', {failureRedirect: '/'}),
+      (req, res) => {
+         console.log("receive callback");
+        res.redirect('/profile');
+      });
+
+
         app.route('/')
           .get((req, res) => {
             res.render(process.cwd() + '/views/pug/index');
@@ -88,8 +120,8 @@ mongo.connect(process.env.DATABASE, (err, db) => {
             .type('text')
             .send('Not Found');
         });
-      
+
         app.listen(process.env.PORT || 3000, () => {
           console.log("Listening on port " + process.env.PORT);
-        });  
+        });
 }});
