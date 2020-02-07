@@ -19,7 +19,8 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.set('view engine', 'pug')
 
-mongo.connect(process.env.DATABASE, (err, db) => {
+mongo.connect(process.env.DATABASE, (err, client) => {
+  let db = client.db("test");
     if(err) {
         console.log('Database error: ' + err);
     } else {
@@ -56,7 +57,7 @@ mongo.connect(process.env.DATABASE, (err, db) => {
         passport.use(new GitHubStrategy({
           clientID: process.env.GITHUB_CLIENT_ID,
           clientSecret: process.env.GITHUB_CLIENT_SECRET,
-          callbackURL: '/auth/github/callback'
+          callbackURL: 'https://olenamelnyk-boilerplate-socialauth-4.glitch.me/auth/github/callback'
         },
         function(accessToken, refreshToken, profile, cb) {
           console.log("profile", profile);
@@ -67,7 +68,7 @@ mongo.connect(process.env.DATABASE, (err, db) => {
               id: profile.id,
               name: profile.displayName || 'John Doe',
               photo: profile.photos[0].value || '',
-              email: profile.emails[0].value || 'No public email',
+              email: /*profile.emails[0].value || */'No public email',
               created_on: new Date(),
               provider: profile.provider || ''
             },$set:{
